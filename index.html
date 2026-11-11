@@ -1,0 +1,127 @@
+<!-- PROJECT: CENTRO MARKET | FILE: admin/index.html | VERSION: 1.0.0 | LAST UPDATED: 2026-11-10 | PURPOSE: Admin PWA (login, dashboard, vendors, products, customers, categories, plans, settings, audit log) | CHANGELOG: 1.0.0 Initial version (Batch 2) -->
+<!doctype html>
+<html lang="en" data-t="system"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Centro Market Admin</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><meta name="theme-color" content="#0f766e">
+<style>
+:root{--bg:#f4f6f8;--cd:#fff;--tx:#17202a;--mu:#5f6b77;--bd:#dde2e7;--pr:#0f766e;--pt:#fff;--dn:#b42318;--ok:#067647;--wn:#b54708}
+:root[data-t=dark]{--bg:#0e1317;--cd:#172027;--tx:#e8edf2;--mu:#9aa7b4;--bd:#2a353e;--pr:#2dd4bf;--pt:#06201c;--dn:#f97066;--ok:#47cd89;--wn:#fdb022}
+@media(prefers-color-scheme:dark){:root[data-t=system]{--bg:#0e1317;--cd:#172027;--tx:#e8edf2;--mu:#9aa7b4;--bd:#2a353e;--pr:#2dd4bf;--pt:#06201c;--dn:#f97066;--ok:#47cd89;--wn:#fdb022}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--cd);border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;padding:8px 12px}
+header b{color:var(--pr);margin-right:auto}nav{display:flex;gap:4px;overflow-x:auto;background:var(--cd);border-bottom:1px solid var(--bd);padding:6px 8px;position:sticky;top:49px;z-index:4}
+nav button{white-space:nowrap;background:none;border:0;color:var(--mu);padding:8px 12px;border-radius:8px;font:inherit;cursor:pointer}nav button.on{background:var(--pr);color:var(--pt)}
+main{max-width:1100px;margin:0 auto;padding:14px}.card{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.stat{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:12px}.stat small{color:var(--mu)}.stat b{display:block;font-size:22px}
+h2{margin:4px 0 12px;font-size:18px}h3{margin:0 0 8px;font-size:15px}label{display:block;font-size:13px;color:var(--mu);margin:8px 0 3px}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}input[type=checkbox]{width:auto}
+button.b{background:var(--pr);color:var(--pt);border:0;border-radius:8px;padding:8px 12px;font:inherit;cursor:pointer;margin:2px}button.g{background:none;color:var(--tx);border:1px solid var(--bd)}button.d{background:var(--dn);color:#fff}button:disabled{opacity:.5}
+.w{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:560px}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);vertical-align:top}th{color:var(--mu);font-size:12px;text-transform:uppercase}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;border:1px solid var(--bd)}.ACTIVE,.APPROVED,.TRIAL,.VISIBLE,.SUCCESS{color:var(--ok)}.PENDING{color:var(--wn)}.REJECTED,.SUSPENDED,.DELETED,.DENIED,.FAILURE{color:var(--dn)}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}.mu{color:var(--mu)}.empty{padding:22px;text-align:center;color:var(--mu)}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;z-index:9;max-width:90%}#toast.e{background:var(--dn);color:#fff}
+.box{max-width:380px;margin:9vh auto;padding:0 14px}
+</style></head><body><div id="app"></div><div id="toast" role="status"></div>
+<script>
+'use strict';
+const DEFAULT_API=''; // optional: paste your Web app URL (ending /exec) here; otherwise the app asks once and remembers it
+const $=s=>document.querySelector(s),esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls=localStorage,ss=sessionStorage,R=()=>'r'+crypto.randomUUID().replace(/-/g,'');
+let API=ls.cm_api||DEFAULT_API,tok=ss.cm_tok||'',me=null,view='dash',C={},F={v:'',p:'',c:''};
+const dev=ls.cm_dev||(ls.cm_dev=crypto.randomUUID().replace(/-/g,''));
+const peso=n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const dt=s=>s?new Date(s).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}):'';
+const tag=s=>s?`<span class="tag ${esc(s)}">${esc(s)}</span>`:'';
+function toast(m,e){const t=$('#toast');t.textContent=m;t.className=e?'e':'';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',e?5000:2600)}
+async function api(action,payload){
+  let j;try{const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,payload:payload||{},token:tok||null,requestId:R(),deviceId:dev})});j=await r.json()}
+  catch(e){throw{message:navigator.onLine?'Cannot reach the server. Check the Web app URL and your connection.':'You are offline. Changes cannot be saved offline.'}}
+  if(!j.ok){if(j.error.code==='UNAUTHENTICATED'&&tok&&action!=='auth.me'){tok='';ss.removeItem('cm_tok');toast('Session expired. Please log in again.',1);boot()}throw j.error}
+  return j.data}
+async function run(fn){try{await fn()}catch(e){toast(e.message||'Something went wrong',1)}}
+const tbl=(h,rows)=>rows.length?`<div class="w"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:'<div class="empty">Nothing here yet.</div>';
+const btn=(a,id,d,l,k)=>`<button class="b ${k||'g'}" data-a="${a}" data-id="${esc(id)}" data-d="${esc(d||'')}">${l}</button>`;
+const sel=(id,v,o)=>`<select id="${id}">${o.map(x=>`<option value="${esc(x[0])}"${x[0]===v?' selected':''}>${esc(x[1])}</option>`).join('')}</select>`;
+const ask=(m,req)=>{const r=prompt(m+(req?' (required)':' (optional)'));return r===null?null:r.trim()};
+
+/* ---------- screens ---------- */
+function shell(){
+  const T=[['dash','Dashboard'],['vendors','Vendors'],['products','Products'],['customers','Customers'],['cats','Categories'],['plans','Plans'],['set','Settings'],['audit','Audit log']];
+  $('#app').innerHTML=`<header><b>Centro Market Admin</b><span class="mu">${esc(me.Mobile)}</span><button class="b g" data-a="theme">Theme</button><button class="b g" data-a="logout">Log out</button></header>
+  <nav>${T.map(t=>`<button data-a="tab" data-id="${t[0]}" class="${t[0]===view?'on':''}">${t[1]}</button>`).join('')}</nav><main id="view"></main>`}
+const authBox=(t,f,b)=>`<div class="box"><div class="card"><h2>${t}</h2><form data-f="${b}">${f}<button class="b" style="width:100%;margin-top:14px">Continue</button></form></div></div>`;
+const fld=(n,l,t,x)=>`<label>${l}</label><input name="${n}" type="${t||'text'}" ${x||''} required>`;
+async function boot(){
+  if(!API)return $('#app').innerHTML=authBox('Connect to Centro Market',fld('url','Web app URL (ends with /exec)','url','placeholder="https://script.google.com/macros/s/…/exec"')+'<p class="mu">Saved on this device only.</p>','connect');
+  if(!tok)return $('#app').innerHTML=authBox('Admin login',fld('mobile','Mobile number','tel','autocomplete="username" placeholder="09171234567"')+fld('pw','Password','password','autocomplete="current-password"')+`<p class="mu"><a href="#" data-a="resetapi">Change server URL</a></p>`,'login');
+  try{me=(await api('auth.me')).user}catch(e){tok='';ss.removeItem('cm_tok');return boot()}
+  if(me.Role!=='ADMIN'){tok='';ss.removeItem('cm_tok');toast('This is not an Admin account.',1);return boot()}
+  if(me.MustChangePassword)return $('#app').innerHTML=authBox('Change your password','<p class="mu">You are using a temporary password. Choose a new one (8+ characters, letters and numbers).</p>'+fld('o','Current password','password')+fld('n1','New password','password')+fld('n2','Repeat new password','password'),'chpw');
+  shell();render()}
+async function render(){const v=$('#view');v.innerHTML='<div class="empty">Loading…</div>';try{v.innerHTML=await V[view]()}catch(e){v.innerHTML=`<div class="card"><b>Could not load.</b> ${esc(e.message)}</div>`}}
+
+/* ---------- views ---------- */
+const V={
+async dash(){const d=await api('admin.dashboard');const st=o=>Object.keys(o||{}).map(k=>`${esc(k)}: ${o[k]}`).join(' · ')||'—';
+  const S=(l,v,s)=>`<div class="stat"><small>${l}</small><b>${v}</b><small>${s||''}</small></div>`;
+  return `<h2>Dashboard</h2><div class="grid">${S('Customers',d.customers.total,d.customers.active+' active')}${S('Vendors',d.vendors.total,st(d.vendors.byStatus))}${S('Products',d.products.total,st(d.products.byApproval))}${S('Orders',d.orders.total,st(d.orders.byStatus))}
+  ${S('Gross sales (completed)',peso(d.sales.grossSales),d.sales.completedOrders+' orders')}${S('Subscription revenue',peso(d.revenue.subscriptions))}${S('Commission revenue',peso(d.revenue.commissions))}${S('Open complaints',d.openComplaints)}${S('Subscriptions',Object.values(d.subscriptions.byStatus).reduce((a,b)=>a+b,0),st(d.subscriptions.byStatus))}</div>
+  <p class="mu">Updated ${dt(d.serverTime)}. Daily/monthly/yearly charts arrive with the reports batch.</p>`},
+async vendors(){const o=[['','All statuses']].concat(['PENDING','ACTIVE','SUSPENDED','REJECTED','INACTIVE'].map(x=>[x,x]));
+  const d=await api('admin.listVendors',F.v?{status:F.v}:{});
+  const act=v=>({PENDING:btn('vendor',v.VendorID,'APPROVE','Approve','b')+btn('vendor',v.VendorID,'REJECT','Reject','d'),ACTIVE:btn('vendor',v.VendorID,'SUSPEND','Suspend','d'),SUSPENDED:btn('vendor',v.VendorID,'REACTIVATE','Reactivate','b'),INACTIVE:btn('vendor',v.VendorID,'REACTIVATE','Reactivate','b'),REJECTED:''}[v.Status]||'');
+  return `<h2>Vendors</h2><div class="card">${sel('fv',F.v,o)}</div><div class="card">${tbl(['Store','Owner','Stall','Status','Subscription','Applied','Actions'],d.vendors.map(v=>[`<b>${esc(v.StoreName)}</b>`,esc(v.FullName)+'<br><span class="mu">'+esc(v.Mobile)+'</span>',esc(v.StallLocation),tag(v.Status)+(v.RejectReason?'<br><span class="mu">'+esc(v.RejectReason)+'</span>':''),tag(v.SubscriptionStatus)+(v.TrialEndsAt?'<br><span class="mu">until '+dt(v.TrialEndsAt)+'</span>':''),dt(v.CreatedAt),act(v)]))}</div>`},
+async products(){const o=[['','All']].concat(['PENDING','APPROVED','REJECTED'].map(x=>[x,x]));const d=await api('admin.listProducts',F.p?{approval:F.p}:{});
+  return `<h2>Products</h2><div class="card">${sel('fp',F.p,o)}</div><div class="card">${tbl(['Product','Store','Price','Approval','Availability','Actions'],d.products.map(p=>[`<b>${esc(p.Name)}</b>`,esc(p.Store),peso(p.Price)+(p.Unit?' / '+esc(p.Unit):''),tag(p.ApprovalStatus),tag(p.Availability),(p.ApprovalStatus!=='APPROVED'?btn('prod',p.ProductID,'APPROVE','Approve','b'):'')+(p.ApprovalStatus!=='REJECTED'?btn('prod',p.ProductID,'REJECT','Reject','d'):'')+btn('prod',p.ProductID,'REMOVE','Remove','d')]))}</div>`},
+async customers(){const o=[['','All']].concat(['ACTIVE','SUSPENDED'].map(x=>[x,x]));const d=await api('admin.listCustomers',F.c?{status:F.c}:{});
+  return `<h2>Customers</h2><div class="card">${sel('fc',F.c,o)}</div><div class="card">${tbl(['Name','Mobile','Email','Status','Last login','Actions'],d.customers.map(c=>[`<b>${esc(c.FullName)}</b>`,esc(c.Mobile),esc(c.Email),tag(c.Status),dt(c.LastLoginAt),c.Status==='ACTIVE'?btn('cust',c.CustomerID,'SUSPENDED','Suspend','d'):btn('cust',c.CustomerID,'ACTIVE','Reactivate','b')]))}</div>`},
+async cats(){const d=await api('admin.listCategories');C.cats=d.categories;
+  return `<h2>Categories</h2><div class="card"><h3 id="ct">Add category</h3><form data-f="cat"><input type="hidden" name="id"><div class="row"><div>${'<label>Name</label><input name="name" required maxlength="80">'}</div><div><label>Slug (optional)</label><input name="slug" maxlength="60"></div></div>
+  <label>Description</label><input name="description" maxlength="300"><div class="row"><div><label>Sort order</label><input name="sort" type="number" min="0" value="0"></div><div><label>Status</label><select name="status"><option>ACTIVE</option><option>INACTIVE</option><option>ARCHIVED</option></select></div><div><label>Featured</label><input name="feat" type="checkbox"></div></div>
+  <button class="b" style="margin-top:12px">Save category</button> <button type="button" class="b g" data-a="catnew">Clear</button></form></div><div class="card">${tbl(['#','Name','Slug','Featured','Status',''],d.categories.map(c=>[c.SortOrder,`<b>${esc(c.Name)}</b><br><span class="mu">${esc(c.Description)}</span>`,esc(c.Slug),c.IsFeatured?'Yes':'',tag(c.Status),btn('catedit',c.CategoryID,'','Edit')]))}</div>`},
+async plans(){const d=await api('admin.listPlans');C.plans=d.plans;
+  return `<h2>Subscription plans</h2><div class="card"><h3>Add or edit plan</h3><form data-f="plan"><input type="hidden" name="id"><div class="row"><div><label>Name</label><input name="name" required maxlength="40"></div><div><label>Monthly price (₱)</label><input name="m" type="number" min="0" step="0.01" required></div><div><label>Annual price (₱)</label><input name="a" type="number" min="0" step="0.01" required></div></div>
+  <div class="row"><div><label>Product limit</label><input name="lim" type="number" min="1" required></div><div><label>Priority level (1-10)</label><input name="pri" type="number" min="1" max="10" required></div><div><label>Trial days</label><input name="trial" type="number" min="0" required></div><div><label>Sort</label><input name="sort" type="number" min="0" value="0"></div></div>
+  <label>Features (comma separated)</label><input name="feat"><label>Status</label><select name="status"><option>ACTIVE</option><option>INACTIVE</option></select><button class="b" style="margin-top:12px">Save plan</button> <button type="button" class="b g" data-a="plannew">Clear</button></form></div>
+  <div class="card">${tbl(['Plan','Monthly','Annual','Products','Priority','Trial','Status',''],d.plans.map(p=>[`<b>${esc(p.Name)}</b><br><span class="mu">${esc((p.Features||[]).join(', '))}</span>`,peso(p.MonthlyPrice),peso(p.AnnualPrice),p.ProductLimit,p.PriorityLevel,p.TrialDays+' d',tag(p.Status),btn('planedit',p.PlanID,'','Edit')]))}</div>`},
+async set(){const d=await api('admin.getSettings');C.set=d.settings;const g={};d.settings.forEach(s=>(g[s.group]=g[s.group]||[]).push(s));
+  const inp=s=>s.type==='bool'?`<select data-k="${s.key}" data-t="bool"><option value="true"${s.value?' selected':''}>ON</option><option value="false"${s.value?'':' selected'}>OFF</option></select>`:s.type==='json'?`<textarea data-k="${s.key}" data-t="json" rows="3">${esc(JSON.stringify(s.value))}</textarea>`:`<input data-k="${s.key}" data-t="${s.type}" value="${esc(s.value)}">`;
+  return `<h2>Marketplace settings</h2><div class="card mu">Changes are enforced by the server for every app. Turning a switch OFF takes effect immediately.</div>`+Object.keys(g).map(k=>`<div class="card"><h3>${esc(k)}</h3>${g[k].map(s=>`<label>${esc(s.key)} — ${esc(s.description)}</label>${inp(s)}`).join('')}</div>`).join('')+`<div class="card"><label>Reason for change (optional, saved in audit log)</label><input id="why" maxlength="300"><button class="b" data-a="saveset" style="margin-top:10px">Save changed settings</button></div>`},
+async audit(){const d=await api('admin.listAuditLogs',{action:F.a||undefined,limit:100});
+  return `<h2>Audit log</h2><div class="card"><label>Filter by action (e.g. LOGIN, SETTING_UPDATED, VENDOR_REVIEWED)</label><div class="row"><input id="fa" value="${esc(F.a||'')}"><button class="b" data-a="auditgo">Filter</button></div></div><div class="card">${tbl(['When','Actor','Action','Entity','Outcome','Reason'],d.logs.map(l=>[dt(l.CreatedAt),esc(l.ActorRole)+'<br><span class="mu">'+esc(l.ActorUserID)+'</span>',`<b>${esc(l.Action)}</b>`,esc(l.EntityType)+'<br><span class="mu">'+esc(l.EntityID)+'</span>',tag(l.Outcome),esc(l.Reason)]))}</div>`}
+};
+
+/* ---------- form submits ---------- */
+const H={
+async connect(f){const u=f.url.value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/[^\/\s]+\/exec$/.test(u))throw{message:'Paste the full Web app URL ending in /exec.'};ls.cm_api=API=u;boot()},
+async login(f){const d=await api('auth.login',{mobile:f.mobile.value,password:f.pw.value});tok=d.token;if(d.user.Role!=='ADMIN'){await api('auth.logout').catch(()=>{});tok='';throw{message:'This is not an Admin account.'}}ss.cm_tok=tok;boot()},
+async chpw(f){if(f.n1.value!==f.n2.value)throw{message:'New passwords do not match.'};await api('auth.changePassword',{oldPassword:f.o.value,newPassword:f.n1.value});toast('Password changed. Please log in again.');tok='';ss.removeItem('cm_tok');boot()},
+async cat(f){await api('admin.saveCategory',{categoryId:f.id.value||undefined,name:f.name.value,slug:f.slug.value,description:f.description.value,sortOrder:f.sort.value,status:f.status.value,isFeatured:f.feat.checked});toast('Category saved');render()},
+async plan(f){await api('admin.savePlan',{planId:f.id.value||undefined,name:f.name.value,monthlyPrice:f.m.value,annualPrice:f.a.value,productLimit:f.lim.value,priorityLevel:f.pri.value,trialDays:f.trial.value,sortOrder:f.sort.value,status:f.status.value,features:f.feat.value.split(',').map(x=>x.trim()).filter(Boolean)});toast('Plan saved');render()}
+};
+document.addEventListener('submit',e=>{const f=e.target.closest('form[data-f]');if(!f)return;e.preventDefault();const b=f.querySelector('button:not([type=button])');b.disabled=true;run(()=>H[f.dataset.f](f)).finally(()=>b.disabled=false)});
+
+/* ---------- actions ---------- */
+const fill=(f,o)=>{Object.keys(o).forEach(k=>{const el=document.querySelector(`form[data-f="${f}"] [name="${k}"]`);if(el){if(el.type==='checkbox')el.checked=!!o[k];else el.value=o[k]==null?'':o[k]}});scrollTo({top:0,behavior:'smooth'})};
+const A={
+tab(id){view=id;shell();render()},
+theme(){const o=['system','light','dark'],h=document.documentElement;h.dataset.t=o[(o.indexOf(h.dataset.t)+1)%3];ls.cm_theme=h.dataset.t;toast('Theme: '+h.dataset.t)},
+async logout(){await api('auth.logout').catch(()=>{});tok='';ss.removeItem('cm_tok');boot()},
+resetapi(){ls.removeItem('cm_api');API=DEFAULT_API;boot()},
+async vendor(id,d){const need=d==='REJECT'||d==='SUSPEND',r=ask(d+' this vendor? Reason',need);if(r===null||(need&&!r))return;await api('admin.reviewVendor',{vendorId:id,decision:d,reason:r});toast('Vendor updated');render()},
+async prod(id,d){const need=d!=='APPROVE',r=ask(d+' this product? Reason',need);if(r===null||(need&&!r))return;await api('admin.reviewProduct',{productId:id,decision:d,reason:r});toast('Product updated');render()},
+async cust(id,d){const need=d==='SUSPENDED',r=ask((need?'Suspend':'Reactivate')+' this customer? Reason',need);if(r===null||(need&&!r))return;await api('admin.setCustomerStatus',{customerId:id,status:d,reason:r});toast('Customer updated');render()},
+catedit(id){const c=C.cats.find(x=>x.CategoryID===id);$('#ct').textContent='Edit category';fill('cat',{id:c.CategoryID,name:c.Name,slug:c.Slug,description:c.Description,sort:c.SortOrder,status:c.Status,feat:c.IsFeatured})},
+catnew(){$('#ct').textContent='Add category';document.querySelector('form[data-f=cat]').reset();document.querySelector('form[data-f=cat] [name=id]').value=''},
+planedit(id){const p=C.plans.find(x=>x.PlanID===id);fill('plan',{id:p.PlanID,name:p.Name,m:p.MonthlyPrice,a:p.AnnualPrice,lim:p.ProductLimit,pri:p.PriorityLevel,trial:p.TrialDays,sort:p.SortOrder,status:p.Status,feat:(p.Features||[]).join(', ')})},
+plannew(){const f=document.querySelector('form[data-f=plan]');f.reset();f.id.value=''},
+async saveset(){const ch=[];document.querySelectorAll('[data-k]').forEach(el=>{const s=C.set.find(x=>x.key===el.dataset.k);let v;try{v=el.dataset.t==='bool'?el.value==='true':el.dataset.t==='number'?(el.value.trim()===''?NaN:Number(el.value)):el.dataset.t==='json'?JSON.parse(el.value):el.value}catch(e){throw{message:'Invalid JSON in '+s.key}}if(JSON.stringify(v)!==JSON.stringify(s.value))ch.push({key:s.key,value:v})});
+  if(!ch.length)return toast('No changes to save');if(!confirm('Save '+ch.length+' changed setting(s)?'))return;await api('admin.updateSettings',{changes:ch,reason:$('#why').value});toast('Settings saved');render()},
+auditgo(){F.a=$('#fa').value.trim();render()}
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(!b)return;e.preventDefault();if(b.dataset.a==='saveset'||A[b.dataset.a])run(()=>A[b.dataset.a](b.dataset.id,b.dataset.d))});
+document.addEventListener('change',e=>{const m={fv:'v',fp:'p',fc:'c'}[e.target.id];if(m){F[m]=e.target.value;render()}});
+addEventListener('offline',()=>toast('You are offline. Changes cannot be saved offline.',1));
+if(ls.cm_theme)document.documentElement.dataset.t=ls.cm_theme;
+if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+boot();
+</script></body></html>
